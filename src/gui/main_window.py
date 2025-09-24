@@ -7,6 +7,7 @@ from ..database.db_manager import DatabaseManager
 from ..ai.model_handler import AIModelHandler
 from ..search.search_engine import SearchEngine
 
+
 class GalleryApp:
     def __init__(self, config):
         self.config = config
@@ -24,7 +25,7 @@ class GalleryApp:
         
         self.setup_ui()
         
-        # Build search index
+        # Build search index in a background thread
         threading.Thread(target=self.search_engine.build_index, daemon=True).start()
     
     def setup_ui(self):
@@ -56,7 +57,7 @@ class GalleryApp:
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
         
-        # Image display area with scrolling
+        # Scrollable image display area
         self.canvas = tk.Canvas(main_frame, bg="white")
         scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=self.canvas.yview)
         self.scrollable_frame = ttk.Frame(self.canvas)
@@ -75,6 +76,7 @@ class GalleryApp:
         self.status_var.set("Ready")
         ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN).pack(fill=tk.X, side=tk.BOTTOM)
         
+        # Load existing images initially
         self.load_existing_images()
     
     def add_folder(self):
@@ -86,3 +88,64 @@ class GalleryApp:
     
     def run(self):
         self.root.mainloop()
+    
+    def search_images(self, event=None):
+        # Placeholder: Implement your searching logic here
+        # For now, just a simple status update
+        query = self.search_var.get().strip()
+        self.status_var.set(f"Search triggered for query: '{query}'")
+        # TODO: Perform actual search and update displayed images
+    
+    def show_all_images(self):
+        # Reset search and reload all images
+        self.search_var.set('')
+        self.load_existing_images()
+        self.status_var.set("Showing all images")
+    
+    def load_existing_images(self):
+        # Placeholder: Load images from database and display
+        self.current_images = self.db_manager.get_images()
+        self.current_page = 0
+        self.display_current_page()
+    
+    def display_current_page(self):
+        # Clear current images in UI
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        if not self.current_images:
+            ttk.Label(self.scrollable_frame, text="No images found. Add a folder to get started.", font=("Arial", 16)).pack(expand=True, pady=50)
+            return
+        
+        # Pagination logic
+        start_index = self.current_page * self.config.IMAGES_PER_PAGE
+        end_index = start_index + self.config.IMAGES_PER_PAGE
+        images_to_show = self.current_images[start_index:end_index]
+        
+        cols = self.config.GRID_COLUMNS
+        for i, image_data in enumerate(images_to_show):
+            row = i // cols
+            col = i % cols
+            image_path = image_data[1]  # Assuming image path is at index 1
+            
+            frame = ttk.Frame(self.scrollable_frame, relief=tk.RAISED, borderwidth=2)
+            frame.grid(row=row, column=col, padx=5, pady=5)
+            
+            try:
+                img = Image.open(image_path)
+                img.thumbnail(self.config.THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                
+                label = ttk.Label(frame, image=photo)
+                label.image = photo  # keep reference
+                label.pack(pady=5)
+                
+                filename = os.path.basename(image_path)
+                if len(filename) > 25:
+                    filename = filename[:22] + "..."
+                ttk.Label(frame, text=filename, font=("Arial", 8)).pack()
+                
+                # Clicking image could show detail - implement as needed
+                # label.bind("<Button-1>", lambda e, p=image_path: self.show_image_details(p))
+            except Exception as e:
+                ttk.Label(frame, text="Error loading image", font=("Arial", 8)).pack(pady=20)

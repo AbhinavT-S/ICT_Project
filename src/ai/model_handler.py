@@ -17,6 +17,7 @@ class AIModelHandler:
             print(f"CLIP model loaded on {self.device}")
         except Exception as e:
             print(f"Error loading CLIP: {e}")
+            self.model = None
     
     def extract_features(self, image_path):
         if not self.model:
@@ -25,6 +26,7 @@ class AIModelHandler:
             image = self.preprocess(Image.open(image_path)).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 image_features = self.model.encode_image(image)
+                # Convert to CPU numpy array and flatten
                 return image_features.cpu().numpy().astype(np.float32).flatten()
         except Exception as e:
             print(f"Error extracting features: {e}")
@@ -42,14 +44,13 @@ class AIModelHandler:
                 logits_per_image, _ = self.model(image, text)
                 probs = logits_per_image.softmax(dim=-1).cpu().numpy().flatten()
             
-            # Filter by confidence threshold
+            # Filter tags by confidence threshold
             threshold = self.config.TAG_CONFIDENCE_THRESHOLD
             top_indices = np.where(probs > threshold)[0]
             
-            tags = [(self.config.DEFAULT_LABELS[idx], float(probs[idx])) 
-                   for idx in top_indices]
+            tags = [(self.config.DEFAULT_LABELS[idx], float(probs[idx])) for idx in top_indices]
             tags.sort(key=lambda x: x[1], reverse=True)
-            
+         
             return tags[:self.config.MAX_TAGS_PER_IMAGE]
         except Exception as e:
             print(f"Error generating tags: {e}")
